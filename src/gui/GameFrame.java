@@ -18,6 +18,8 @@ public class GameFrame {
      * @param guiPlayer the player this GameFrame is for
      */
     public GameFrame(HumanPlayer guiPlayer){
+        //setLookAndFeel();
+
         JFrame frame= new JFrame();
 
         frame.setName("RSP Football");
@@ -33,6 +35,20 @@ public class GameFrame {
         layoutPanel();
         frame.setLocationByPlatform(true);
         frame.setVisible(true);
+    }
+
+    private void setLookAndFeel(){
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        } catch (InstantiationException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        } catch (UnsupportedLookAndFeelException e) {
+            e.printStackTrace();
+        }
     }
 
     private void layoutPanel(){

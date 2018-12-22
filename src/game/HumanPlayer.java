@@ -5,6 +5,7 @@ import game.Play;
 import gui.GameFrame;
 
 import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
@@ -21,6 +22,7 @@ public class HumanPlayer extends Player implements ActionListener {
     public void receiveInfo(GameInfo info) {
         if(info instanceof GameState){
             GameState state= (GameState)info;
+
             frame.updateFrame(state);
         }
     }
@@ -28,45 +30,48 @@ public class HumanPlayer extends Player implements ActionListener {
     @Override
     public void actionPerformed(ActionEvent e) {
         String command= e.getActionCommand();
+        int colonIndex= command.indexOf(':');
 
-        if(command.equals("shortRunButton")){
-            this.game.sendAction(new PlaycallAction(this, Play.shortRun));
+        if(colonIndex == -1){
+            System.out.println("Human Player recieved bad action format");
+            return;
         }
-        else if(command.equals("longRunButton")){
-            this.game.sendAction(new PlaycallAction(this, Play.longRun));
+
+        //parse off the action type and choice
+        String action= command.substring(0, colonIndex);
+        String param= command.substring(colonIndex+1);
+
+        System.out.println(action + " " + param);
+
+        if(action.equals("playButton")){
+            //get the play off the back of the command
+            Play play= Play.valueOf(param);
+            this.sendGameAction(new PlaycallAction(this, play));
         }
-        else if(command.equals("extraKickButton")){
-            this.game.sendAction(new PATAction(this, PATAction.PATType.extraKick));
+        else if(action.equals("patButton")){
+            PATAction.PATType type= PATAction.PATType.valueOf(param);
+            this.sendGameAction(new PATAction(this, type));
         }
-        else if(command.equals("twoPointButton")){
-            this.game.sendAction(new PATAction(this, PATAction.PATType.twoPointConversion));
+        else if(action.equals("rspButton")){
+            RSP rsp= RSP.valueOf(param);
+            this.sendGameAction(new RSPAction(this, rsp));
         }
-        else if(command.equals("rockButton")){
-            this.game.sendAction(new RSPAction(this, RSP.ROCK));
+        else if(action.equals("rollButton")){
+            //parse off the number of dice to roll
+            int numDice= Integer.parseInt(param);
+            this.sendGameAction(new RollAction(this, numDice));
         }
-        else if(command.equals("scissorsButton")){
-            this.game.sendAction(new RSPAction(this, RSP.SCISSORS));
+        else if(action.equals("kickoffButton")){
+            KickoffAction.KickoffType type= KickoffAction.KickoffType.valueOf(param);
+            this.sendGameAction(new KickoffAction(this, type));
         }
-        else if(command.equals("paperButton")){
-            this.game.sendAction(new RSPAction(this, RSP.PAPER));
+        else if(action.equals("touchbackButton")){
+            KickReturnAction.KickReturnType type= KickReturnAction.KickReturnType.valueOf(param);
+            this.sendGameAction(new KickReturnAction(this, type));
         }
-        else if(command.startsWith("rollButton")){
-            //roll commands are of form rollButton1 or rollButton2,
-            //so parse off the number of dice to roll
-            int numDice= command.charAt(10) - '0';
-            this.game.sendAction(new RollAction(this, numDice));
-        }
-        else if(command.equals("regularKickButton")){
-            this.game.sendAction(new KickoffAction(this, KickoffAction.KickoffType.regular));
-        }
-        else if(command.equals("onsideKickButton")){
-            this.game.sendAction(new KickoffAction(this, KickoffAction.KickoffType.onside));
-        }
-        else if(command.equals("touchbackButton")){
-            this.game.sendAction(new KickReturnAction(this, KickReturnAction.KickReturnType.touchback));
-        }
-        else if(command.equals("runReturnButton")){
-            this.game.sendAction(new KickReturnAction(this, KickReturnAction.KickReturnType.regular));
+        else if(action.equals("defenceButton")){
+            DefenceAction.Choice choice= DefenceAction.Choice.valueOf(param);
+            this.sendGameAction(new DefenceAction(this, choice));
         }
         else{
             System.out.println("Human Player recieved unknown action: " + command);

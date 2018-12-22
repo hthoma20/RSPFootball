@@ -12,33 +12,39 @@ public class ComputerPlayer extends Player{
         if(info instanceof GameState){
             GameState state= (GameState)info;
 
-            //check for things we have to do
+            //check if we must rsp
             if(state.waitingForRSP(this.playerIndex)){
-                game.sendAction(new RSPAction(this, chooseRSP()));
+                this.sendGameAction(new RSPAction(this, chooseRSP()));
             }
 
+            //check if we must roll
+            int waitingForRoll= state.waitingForRoll(this.playerIndex);
+            if(waitingForRoll != -1){
+                this.sendGameAction(new RollAction(this, waitingForRoll));
+            }
+
+            //check if we must make some decision
             boolean isMyPlay= state.getPossession() == this.playerIndex;
             if(isMyPlay){
                 switch(state.getGamePos()){
                     case playCall:
-                        game.sendAction(new PlaycallAction(this, callPlay()));
+                        this.sendGameAction(new PlaycallAction(this, callPlay()));
                         break;
                     case touchdown:
-                        game.sendAction(new PATAction(this, choosePAT()));
+                        this.sendGameAction(new PATAction(this, choosePAT()));
                         break;
                     case kickoff:
-                        game.sendAction(new KickoffAction(this, chooseKickoff()));
+                        this.sendGameAction(new KickoffAction(this, chooseKickoff()));
                         break;
                     case touchback:
-                        game.sendAction(new KickReturnAction(this, chooseTouchback()));
+                        this.sendGameAction(new KickReturnAction(this, chooseTouchback()));
                         break;
-                    case regularKick:
-                        game.sendAction(new RollAction(this, 3));
                 }
             }
-            if(!isMyPlay){
-                if(state.getGamePos() == GamePos.defenceRoll){
-                    game.sendAction(new RollAction(this, 1));
+            else{
+                switch(state.getGamePos()){
+                    case defenceChoice:
+                        this.sendGameAction(new DefenceAction(this, chooseSack()));
                 }
             }
         }
@@ -57,7 +63,7 @@ public class ComputerPlayer extends Player{
      * @return the play we want to do
      */
     private Play callPlay(){
-        return Play.shortRun;
+        return Play.longPass;
     }
 
     /**
@@ -82,5 +88,13 @@ public class ComputerPlayer extends Player{
      */
     private KickReturnAction.KickReturnType chooseTouchback(){
         return KickReturnAction.KickReturnType.touchback;
+    }
+
+    /**
+     * decide whether to sack the offence or to go for an interception
+     * @return sack or interception
+     */
+    private DefenceAction.Choice chooseSack(){
+        return DefenceAction.Choice.sack;
     }
 }

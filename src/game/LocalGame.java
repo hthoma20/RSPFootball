@@ -6,14 +6,10 @@ import java.util.HashMap;
 
 public class LocalGame {
     //a list of game pos where we need an rsp
-    public static final GamePos[] rspPos= {GamePos.rsp, GamePos.shortRun, GamePos.longRunFumble};
+    public static final GamePos[] rspPos= {GamePos.rsp, GamePos.shortRun, GamePos.longRunFumble, GamePos.shortPass};
 
     private GameState state;
     private Player[] players;
-
-    //a map from a given state to the roll specifications that should be true
-    //for a valid action
-    private HashMap<GamePos, RollRule> rollRules;
 
     public LocalGame(){
         this.state= new GameState();
@@ -22,23 +18,7 @@ public class LocalGame {
         players[0]= new HumanPlayer(this, "Human", 0);
         players[1]= new ComputerPlayer(this, "Bot", 1);
 
-        setupRollRules();
-
         sendInfo(state);
-    }
-
-    private void setupRollRules(){
-        this.rollRules= new HashMap<>();
-
-        //if it's an extra point, the offence must have rolled 2 dice
-        rollRules.put(GamePos.extraPoint, new RollRule(true, 2));
-        //if it's a regular kick, the offence must have rolled 3 dice
-        rollRules.put(GamePos.regularKick, new RollRule(true, 3));
-        rollRules.put(GamePos.onsideKick, new RollRule(true, 2));
-        //if it's a defence roll, the defecne must have rolled 1 die
-        rollRules.put(GamePos.defenceRoll, new RollRule(false, 1));
-        rollRules.put(GamePos.kickReturn, new RollRule(true, 1));
-        rollRules.put(GamePos.longRun, new RollRule(true, 1));
     }
 
     /**
@@ -65,6 +45,9 @@ public class LocalGame {
         }
         if(action instanceof KickReturnAction){
             return isValidKickReturnAction((KickReturnAction)action);
+        }
+        if(action instanceof DefenceAction){
+            return isValidDefenceAction((DefenceAction)action);
         }
 
         return false;
@@ -99,18 +82,9 @@ public class LocalGame {
     }
 
     private boolean isValidRollAction(RollAction action){
-        GamePos gamePos= state.getGamePos();
-
-        //whether the offensive team is sending this action
-        boolean offenceRolled= action.getPlayer() == players[state.getPossession()];
-
-        RollRule rule= rollRules.get(gamePos);
-
-        if(rule == null){
-            return false;
-        }
-
-        return rule.isValid(offenceRolled, action.getNumDice());
+        //check that the state is waiting for this player to roll the correct number of dice
+        int waitingFor= state.waitingForRoll(playerIndex(action.getPlayer()));
+        return waitingFor == action.getNumDice();
     }
 
     private boolean isValidKickoffAction(KickoffAction action){
@@ -130,6 +104,16 @@ public class LocalGame {
 
         //only the returning team can make this call
         return action.getPlayer() == players[state.getPossession()];
+    }
+
+    private boolean isValidDefenceAction(DefenceAction action){
+        //the game must be in defence choice pos
+        if(state.getGamePos() != GamePos.defenceChoice){
+            return false;
+        }
+
+        //only the defening player makes defence choices
+        return action.getPlayer() != players[state.getPossession()];
     }
 
     /**
@@ -176,6 +160,10 @@ public class LocalGame {
             receiveKickReturnType(((KickReturnAction) action).getType());
             return true;
         }
+        if(action instanceof DefenceAction){
+            receiveDefenceAction(((DefenceAction) action).getChoice());
+            return true;
+        }
         return false;
     }
 
@@ -215,6 +203,15 @@ public class LocalGame {
                     state.switchPossession();
                 }
                 break;
+            case shortPass:
+                //if the offense won the rsp
+                if(winner == state.getPossession()){
+                    state.runBall(10);
+                }
+                else{
+                    state.advancePlay();
+                }
+                break;
         }
 
         return true;
@@ -241,6 +238,12 @@ public class LocalGame {
                 break;
             case longRun:
                 state.longRun(winner);
+                break;
+            case shortPass:
+                state.shortPass(winner);
+                break;
+            case longPass:
+                state.longPass(winner);
                 break;
         }
     }
@@ -289,6 +292,19 @@ public class LocalGame {
                 else{
                     state.advancePlay();
                 }
+                break;
+
+            case longPass:
+                state.throwBall(sum*5 + 10);
+                state.advancePlay();
+                break;
+
+            case interception:
+                switch(state.getPlay()){
+                    case longPass:
+                        state.interception(sum*5 + 10);
+                        break;
+                }
         }
 
         return true;
@@ -316,6 +332,21 @@ public class LocalGame {
                 }
                 state.advancePlay();
                 break;
+            case shortPass:
+                if(sum == 6){
+                    state.interception(10);
+                }
+                else{
+                    state.advancePlay();
+                }
+                break;
+            case longPass:
+                if(sum >= 5){
+                    state.interception();
+                }
+                else{
+                    state.advancePlay();
+                }
         }
     }
 
@@ -330,13 +361,36 @@ public class LocalGame {
         }
     }
 
+    private void receiveDefenceAction(DefenceAction.Choice choice){
+        switch(choice){
+            case sack:
+                int sackYards= 0;
+                switch(state.getPlay()){
+                    case shortPass:
+                        sackYards= 5;
+                        break;
+                    case longPass:
+                        sackYards= 10;
+                        break;
+                }
+
+                state.sackBall(sackYards);
+                state.advancePlay();
+                break;
+
+            case intercept:
+                state.interceptAttempt();
+                break;
+        }
+    }
+
     /**
      * send the given game info to all players
      * @param info the info to send -- often the current game state
      */
     private void sendInfo(GameInfo info){
         for(Player player : players){
-            player.receiveInfo(info);
+            player.sendInfo(info);
         }
     }
 
@@ -356,30 +410,5 @@ public class LocalGame {
 
     public static void main(String[] args){
         new LocalGame();
-    }
-
-    /**
-     * a rule that represents whether the player must be on offence
-     * and how many dice they should have rolled
-     * for this to be a valid roll action
-     */
-    private class RollRule{
-        boolean offence;
-        int numDice;
-
-        public RollRule(boolean offence, int numDice) {
-            this.offence = offence;
-            this.numDice = numDice;
-        }
-
-        /**
-         * checks whether the rule is followed given the parameters
-         * @param offenceRolled whether the offence rolled the dice
-         * @param diceRolled how many dice were rolled
-         * @return whether the rule is followed
-         */
-        public boolean isValid(boolean offenceRolled, int diceRolled){
-            return offenceRolled == this.offence && diceRolled == this.numDice;
-        }
     }
 }

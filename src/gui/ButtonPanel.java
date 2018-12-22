@@ -33,36 +33,39 @@ public class ButtonPanel extends JPanel {
 
     private void setupButtons(){
         DisplayRule playCallRule= gamePosRule(true, false, GamePos.playCall, GamePos.twoPointConversion);
-        this.add(createButton("Short Run", "shortRunButton", playCallRule));
-        this.add(createButton("Long Run", "longRunButton", playCallRule));
+        this.add(createButton("Short Run", "playButton:shortRun", playCallRule));
+        this.add(createButton("Long Run", "playButton:longRun", playCallRule));
+        this.add(createButton("Short Pass", "playButton:shortPass", playCallRule));
+        this.add(createButton("Long Pass", "playButton:longPass", playCallRule));
 
-        DisplayRule rspRule= gamePosRule(true, true, LocalGame.rspPos);
-        this.add(createButton("Rock", "rockButton", rspRule));
-        this.add(createButton("Scissors", "scissorsButton", rspRule));
-        this.add(createButton("Paper", "paperButton", rspRule));
+        DisplayRule rspRule= state -> state.waitingForRSP(this.playerIndex);
+        this.add(createButton("Rock", "rspButton:ROCK", rspRule));
+        this.add(createButton("Scissors", "rspButton:SCISSORS", rspRule));
+        this.add(createButton("Paper", "rspButton:PAPER", rspRule));
 
         DisplayRule touchdownRule= gamePosRule(true, false, GamePos.touchdown);
-        this.add(createButton("1-point kick", "extraKickButton", touchdownRule));
-        this.add(createButton("2-point conversion", "twoPointButton", touchdownRule));
+        this.add(createButton("1-point kick", "patButton:extraKick", touchdownRule));
+        this.add(createButton("2-point conversion", "patButton:twoPointConversion", touchdownRule));
 
-        DisplayRule roll1Rule= orRules(
-                gamePosRule(false, true, GamePos.defenceRoll),
-                gamePosRule(true, false, GamePos.kickReturn),
-                gamePosRule(true, false, GamePos.longRun)
-            );
-        this.add(createButton("Roll 1", "rollButton1", roll1Rule));
-        DisplayRule roll2Rule= gamePosRule(true, false, GamePos.extraPoint, GamePos.onsideKick);
-        this.add(createButton("Roll 2", "rollButton2", roll2Rule));
-        DisplayRule roll3Rule= gamePosRule(true, false, GamePos.regularKick);
-        this.add(createButton("Roll 3", "rollButton3", roll3Rule));
+        DisplayRule roll1Rule= state -> state.waitingForRoll(this.playerIndex) == 1;
+        this.add(createButton("Roll 1", "rollButton:1", roll1Rule));
+        DisplayRule roll2Rule= state -> state.waitingForRoll(this.playerIndex) == 2;
+        this.add(createButton("Roll 2", "rollButton:2", roll2Rule));
+        DisplayRule roll3Rule= state -> state.waitingForRoll(this.playerIndex) == 3;
+        this.add(createButton("Roll 3", "rollButton:3", roll3Rule));
 
         DisplayRule kickoffRule= gamePosRule(true, false, GamePos.kickoff);
-        this.add(createButton("Regular kick-off", "regularKickButton", kickoffRule));
-        this.add(createButton("Onside kick-off", "onsideKickButton", kickoffRule));
+        this.add(createButton("Regular kick-off", "kickoffButton:regular", kickoffRule));
+        this.add(createButton("Onside kick-off", "kickoffButton:onside", kickoffRule));
 
         DisplayRule touchbackRule= gamePosRule(true, false, GamePos.touchback);
-        this.add(createButton("Touchback", "touchbackButton", touchbackRule));
-        this.add(createButton("Run it out", "runReturnButton", touchbackRule));
+        this.add(createButton("Touchback", "touchbackButton:touchback", touchbackRule));
+        this.add(createButton("Run it out", "touchbackButton:regular", touchbackRule));
+
+        DisplayRule defenceRule= gamePosRule(false, true, GamePos.defenceChoice);
+        this.add(createButton("Sack quarterback", "defenceButton:sack", defenceRule));
+        this.add(createButton("Go for interception", "defenceButton:intercept", defenceRule));
+
     }
 
     /**

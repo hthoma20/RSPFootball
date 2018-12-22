@@ -1,5 +1,7 @@
 package game;
 
+import action.GameAction;
+
 public abstract class Player {
     protected LocalGame game;
     protected String name;
@@ -11,7 +13,27 @@ public abstract class Player {
         this.playerIndex= index;
     }
 
-    public abstract void receiveInfo(GameInfo info);
+    /**
+     * recieve and handle info,
+     * use this method to send info to a player
+     * it calles recieveinfo for the specific player
+     * @param info the info the player recieves
+     */
+    public final void sendInfo(GameInfo info){
+        receiveInfo(info);
+    }
+
+    /**
+     * sends an action to the local game
+     * @param action the action to send
+     */
+    protected final void sendGameAction(GameAction action){
+        //send the action on a new thread
+        Thread thread= new Thread(() -> this.game.sendAction(action));
+        thread.start();
+    }
+
+    protected abstract void receiveInfo(GameInfo info);
 
     public String getName(){
         return name;

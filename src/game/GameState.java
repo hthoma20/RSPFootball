@@ -58,7 +58,7 @@ public class GameState extends GameInfo{
         this.quarter= 1;
         this.playClock= 1;
 
-        this.gamePos= GamePos.kickoff;
+        this.gamePos= GamePos.playCall;
     }
 
     //make a deep copy of this gamestate
@@ -198,7 +198,12 @@ public class GameState extends GameInfo{
         this.quarter++;
     }
 
-    public void switchPossession(){
+    /**
+     * switch the possession after first moving the ball the given
+     * number of yards in the current offence's direction
+     * @param yards the number of yards to move first
+     */
+    public void switchPossession(int yards){
         this.possession++;
         this.possession%= 2;
 
@@ -209,6 +214,11 @@ public class GameState extends GameInfo{
 
         //reset the down clock
         down= 1;
+    }
+
+
+    public void switchPossession(){
+        switchPossession(0);
     }
 
     /**
@@ -239,10 +249,74 @@ public class GameState extends GameInfo{
     }
 
     /**
+     * do the things that should happen on short pass
+     * @param rspWinner the player index who won the rsp
+     */
+    public void shortPass(int rspWinner){
+        if(rspWinner == possession){
+            gamePos= GamePos.shortPass;
+            throwBall(10);
+        }
+        else{
+            gamePos= GamePos.defenceChoice;
+        }
+    }
+
+    /**
+     * do the things that should happen on long pass
+     * @param rspWinner the player index who won the rsp
+     */
+    public void longPass(int rspWinner){
+        if(rspWinner == possession){
+            gamePos= GamePos.longPass;
+        }
+        else{
+            gamePos= GamePos.defenceChoice;
+        }
+    }
+
+    /**
      * indicate that a long run has been fumbled
      */
     public void fumbleRun(){
         gamePos= GamePos.longRunFumble;
+    }
+
+    /**
+     * indicate that the defence is going for an interception
+     */
+    public void interceptAttempt(){
+        gamePos= GamePos.defenceRoll;
+    }
+
+    /**
+     * indicate that the ball was intercepted
+     * @param yards the yardage of the throw before the interception
+     */
+    public void interception(int yards){
+        ballPos+= yards;
+
+        advancePlay();
+
+        if(ballPos >= 110){
+            return; //no catch
+        }
+
+        if(ballPos >= 100){
+            gamePos= GamePos.touchback;
+        }
+        else{
+            switchPossession();
+            gamePos= GamePos.kickReturn;
+        }
+    }
+
+    /**
+     * indicate that an interception has been made,
+     * but we are waiting for a die roll for yardage
+     */
+    public void interception(){
+        gamePos= GamePos.interception;
     }
 
     /**
@@ -266,6 +340,48 @@ public class GameState extends GameInfo{
         return rsps[player] == null;
     }
 
+    /**
+     * determines whether we are waiting for the given player
+     * to roll the dice
+     *
+     * @param player the player
+     * @return the number of dice we are wating for the player to roll
+     *          or -1 if we are not waiting for a roll
+     */
+    public int waitingForRoll(int player){
+        //cases where the offence rolls
+        if(player == possession){
+            switch(gamePos){
+                case regularKick:
+                    return 3;
+
+                case onsideKick:
+                    return 2;
+
+                case extraPoint:
+                case longRun:
+                case kickReturn:
+                case longPass:
+                    return 1;
+
+                case interception:
+                    switch(play){
+                        case longPass:
+                            return 1;
+                    }
+            }
+        }
+        //cases where the defence rolls
+        else{
+            switch(gamePos){
+                case defenceRoll:
+                    return 1;
+            }
+        }
+
+        return -1;
+    }
+
     private void touchDown(){
         scores[possession]+= 6;
         gamePos= GamePos.touchdown;
@@ -286,9 +402,16 @@ public class GameState extends GameInfo{
     /**
      * advance ball as if it has been thrown
      * @param yards the number of yards to move
+     * @return whether the pass was caught (whether it didn't go out of bounds)
      */
-    public void throwBall(int yards){
-        ballPos+= yards;
+    public boolean throwBall(int yards){
+        //can't over throw endzone
+        if(ballPos + yards >= 110){
+            return false;
+        }
+        //otherwise, it's exactly like running
+        runBall(yards);
+        return true;
     }
 
     /**
