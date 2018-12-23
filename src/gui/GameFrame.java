@@ -12,6 +12,7 @@ public class GameFrame {
     private FieldPanel field;
     private InfoPanel info;
     private ButtonPanel buttons;
+    private ScorePanel score;
 
     /**
      *
@@ -31,10 +32,20 @@ public class GameFrame {
         this.field= new FieldPanel();
         this.info= new InfoPanel();
         this.buttons= new ButtonPanel(guiPlayer, guiPlayer.getPlayerIndex());
+        this.score= new ScorePanel();
+
+        JFrame scoreFrame= new JFrame();
+        scoreFrame.setName("Scoreboard");
+        scoreFrame.setSize(500, 300);
+        scoreFrame.add(score);
+
 
         layoutPanel();
         frame.setLocationByPlatform(true);
         frame.setVisible(true);
+
+        scoreFrame.setLocationByPlatform(true);
+        scoreFrame.setVisible(true);
     }
 
     private void setLookAndFeel(){
@@ -77,7 +88,7 @@ public class GameFrame {
         //add info panel
         c.gridx= 0;
         c.gridy= 2;
-        c.weighty= 3;
+        c.weighty= 5;
         c.weightx= 1;
         pane.add(info, c);
     }
@@ -90,5 +101,6 @@ public class GameFrame {
         field.updateField(state);
         info.updateInfo(state);
         buttons.updateButtons(state);
+        score.updateScore(state);
     }
 }
