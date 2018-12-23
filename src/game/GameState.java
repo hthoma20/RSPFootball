@@ -3,6 +3,7 @@ package game;
 import action.KickoffAction;
 import action.PATAction;
 
+import java.util.Arrays;
 import java.util.Scanner;
 
 public class GameState extends GameInfo{
@@ -51,7 +52,7 @@ public class GameState extends GameInfo{
 
         this.movingRight= true;
 
-        this.possession= 1;
+        this.possession= 0;
 
         this.down= 1;
 
@@ -170,9 +171,13 @@ public class GameState extends GameInfo{
 
     /**
      * adjust state to reflect that the play is over
+     * @param downCounter whether we should worry about changing the down
+     *                    and switching possession
      */
-    public void advancePlay(){
-        gamePos= GamePos.playCall;
+    public void advancePlay(boolean downCounter){
+        if(downCounter){
+            gamePos= GamePos.playCall;
+        }
 
         this.playClock++;
         if(playClock >= 21){
@@ -185,13 +190,17 @@ public class GameState extends GameInfo{
             firstDown= ballPos + 10;
         }
         //otherwise advance clock normally
-        else {
+        else if(downCounter){
             this.down++;
             if (down >= 5) {
                 switchPossession();
                 this.gamePos= GamePos.playCall;
             }
         }
+    }
+
+    public void advancePlay(){
+        advancePlay(true);
     }
 
     private void advanceQuarter(){
@@ -283,6 +292,56 @@ public class GameState extends GameInfo{
     }
 
     /**
+     * do the things that should happen on a bomb
+     * @param rspWinner the player index who won the rsp
+     */
+    public void bomb(int rspWinner){
+        if(rspWinner == possession){
+            roll= null;
+            gamePos= GamePos.bomb;
+        }
+        else{
+            gamePos= GamePos.defenceChoice;
+        }
+    }
+
+    /**
+     * indicate that the bomb was thrown
+     * an odd dice value will result in a completed
+     * catch (assuming the throw stays in bounds)
+     */
+    public void bombThrown(){
+        int dice= sumDice();
+
+        //whether the throw results in a touchdown
+        boolean touchdown= false;
+        //if the dice are odd, we make the throw
+        if(dice%2 == 1){
+            //we get 35 or the dice, whichever is more
+            int yards= Math.max(dice*5, 35);
+            touchdown= throwBall(yards);
+        }
+
+        //if they're even, we do nothing
+        advancePlay(!touchdown);
+    }
+
+    /**
+     * roll one die, and add it to the roll array
+     */
+    public void bombRoll(){
+        System.out.println("Roll");
+        int newRoll= rollDie();
+        if(roll == null){
+            roll= new int[]{newRoll};
+        }
+        else{
+            roll= Arrays.copyOf(roll, roll.length+1);
+            roll[roll.length-1]= newRoll;
+        }
+    }
+
+    /**
      * indicate that the defence is going for an interception
      */
     public void interceptAttempt(){
@@ -294,13 +353,16 @@ public class GameState extends GameInfo{
      * @param yards the yardage of the throw before the interception
      */
     public void interception(int yards){
-        ballPos+= yards;
+        //where the ball will be if the throw is in bounds
+        int potential= ballPos+yards;
 
         advancePlay();
 
-        if(ballPos >= 110){
+        if(potential >= 110){
             return; //no catch
         }
+
+        ballPos= potential;
 
         if(ballPos >= 100){
             gamePos= GamePos.touchback;
@@ -368,6 +430,8 @@ public class GameState extends GameInfo{
                     switch(play){
                         case longPass:
                             return 1;
+                        case bomb:
+                            return 3;
                     }
             }
         }
@@ -390,19 +454,23 @@ public class GameState extends GameInfo{
     /**
      * advance the ball as if it had been run
      * @param yards the number of yards to move
+     * @return whether the run resulted in a touchdown
      */
-    public void runBall(int yards){
+    public boolean runBall(int yards){
         this.ballPos+= yards;
 
         if(ballPos >= 100){
             touchDown();
+            return true;
         }
+
+        return false;
     }
 
     /**
      * advance ball as if it has been thrown
      * @param yards the number of yards to move
-     * @return whether the pass was caught (whether it didn't go out of bounds)
+     * @return whether the pass was a touchdown
      */
     public boolean throwBall(int yards){
         //can't over throw endzone
@@ -410,16 +478,32 @@ public class GameState extends GameInfo{
             return false;
         }
         //otherwise, it's exactly like running
-        runBall(yards);
-        return true;
+        return runBall(yards);
     }
 
     /**
      * advance the ball as if there was a sack
      * @param yards the number of yards to sack
+     * @return whether the sack resulted in a safety
      */
-    public void sackBall(int yards){
+    public boolean sackBall(int yards){
         ballPos-= yards;
+        if(ballPos <= 0){
+            safety();
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * give points and get ready for a safety
+     */
+    public void safety(){
+        //give defence points
+        scores[(possession+1)%2]+= 2;
+        ballPos= 20;
+        gamePos= GamePos.kickoff;
     }
 
     /**
@@ -541,9 +625,17 @@ public class GameState extends GameInfo{
         System.out.println("Roll " + numDice);
         this.roll= new int[numDice];
         for(int i=0; i<roll.length; i++){
-            //roll[i]= (int)((Math.random()*6)+1);
-            roll[i]= in.nextInt();
+            roll[i]= rollDie();
         }
+    }
+
+    /**
+     * rolls a die and returns it's value
+     * @return a number between [1,6]
+     */
+    public int rollDie(){
+        return (int)(Math.random()*6)+1;
+        //return in.nextInt();
     }
 
     /**

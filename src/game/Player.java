@@ -27,7 +27,7 @@ public abstract class Player {
      * sends an action to the local game
      * @param action the action to send
      */
-    protected final void sendGameAction(GameAction action){
+    protected void sendGameAction(GameAction action){
         //send the action on a new thread
         Thread thread= new Thread(() -> this.game.sendAction(action));
         thread.start();

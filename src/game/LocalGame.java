@@ -49,6 +49,9 @@ public class LocalGame {
         if(action instanceof DefenceAction){
             return isValidDefenceAction((DefenceAction)action);
         }
+        if (action instanceof BombAction) {
+            return isValidBombAction((BombAction)action);
+        }
 
         return false;
     }
@@ -116,6 +119,23 @@ public class LocalGame {
         return action.getPlayer() != players[state.getPossession()];
     }
 
+    private boolean isValidBombAction(BombAction action){
+        //game pos must be bomb
+        if(state.getGamePos() != GamePos.bomb){
+            return false;
+        }
+        //only the offence may choose
+        if(players[state.getPossession()] != action.getPlayer()){
+            return false;
+        }
+        if(action.isDone()) {
+            //you can only be done if the rolls are odd
+            return state.sumDice() % 2 == 1;
+        }
+        //you can always roll
+        return true;
+    }
+
     /**
      * recieve an action from a player
      * @param action the action recieved
@@ -162,6 +182,10 @@ public class LocalGame {
         }
         if(action instanceof DefenceAction){
             receiveDefenceAction(((DefenceAction) action).getChoice());
+            return true;
+        }
+        if(action instanceof BombAction){
+            receiveBombAction(((BombAction) action).isDone());
             return true;
         }
         return false;
@@ -245,6 +269,9 @@ public class LocalGame {
             case longPass:
                 state.longPass(winner);
                 break;
+            case bomb:
+                state.bomb(winner);
+                break;
         }
     }
 
@@ -256,6 +283,9 @@ public class LocalGame {
     private boolean receiveRoll(int numDice){
         state.rollDice(numDice);
         int sum= state.sumDice();
+
+        //whether this roll results in a touchdown
+        boolean touchdown= false;
 
         switch(state.getGamePos()){
             case extraPoint:
@@ -285,24 +315,28 @@ public class LocalGame {
                 break;
 
             case longRun:
-                state.runBall(sum*5);
+                touchdown= state.runBall(sum*5);
                 if(sum == 1){
                     state.fumbleRun();
                 }
                 else{
-                    state.advancePlay();
+                    //if we didn't score, worry about downs
+                    state.advancePlay(!touchdown);
                 }
                 break;
 
             case longPass:
-                state.throwBall(sum*5 + 10);
-                state.advancePlay();
+                touchdown= state.throwBall(sum*5 + 10);
+                state.advancePlay(!touchdown);
                 break;
 
             case interception:
                 switch(state.getPlay()){
                     case longPass:
                         state.interception(sum*5 + 10);
+                        break;
+                    case bomb:
+                        state.interception(sum*5);
                         break;
                 }
         }
@@ -315,22 +349,24 @@ public class LocalGame {
      * @param sum the sum of the dice that were rolled
      */
     private void defenceRolled(int sum){
+        //whether this roll results in a safety
+        boolean safety= false;
         switch(state.getPlay()){
             case shortRun:
                 //if the defence rolled a 5 or 6, there is a sack
                 if(sum >= 5){
-                    state.sackBall(5);
+                    safety= state.sackBall(5);
                 }
-                state.advancePlay();
+
+                state.advancePlay(!safety);
                 break;
             case longRun:
+                int sackYards= 5;
                 if(sum == 6){
-                    state.sackBall(10);
+                    sackYards= 10;
                 }
-                else{
-                    state.sackBall(5);
-                }
-                state.advancePlay();
+                safety= state.sackBall(sackYards);
+                state.advancePlay(!safety);
                 break;
             case shortPass:
                 if(sum == 6){
@@ -342,6 +378,13 @@ public class LocalGame {
                 break;
             case longPass:
                 if(sum >= 5){
+                    state.interception();
+                }
+                else{
+                    state.advancePlay();
+                }
+            case bomb:
+                if(sum%2 == 0){
                     state.interception();
                 }
                 else{
@@ -372,15 +415,31 @@ public class LocalGame {
                     case longPass:
                         sackYards= 10;
                         break;
+                    case bomb:
+                        sackYards= 15;
+                        break;
                 }
 
-                state.sackBall(sackYards);
-                state.advancePlay();
+                boolean safety= state.sackBall(sackYards);
+                state.advancePlay(!safety);
                 break;
 
             case intercept:
                 state.interceptAttempt();
                 break;
+        }
+    }
+
+    private void receiveBombAction(boolean isDone){
+        if(isDone){
+            state.bombThrown();
+        }
+        else{
+            state.bombRoll();
+            //check if that was last throw
+            if(state.getRoll().length == 3){
+                state.bombThrown();
+            }
         }
     }
 

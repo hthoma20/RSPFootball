@@ -37,6 +37,7 @@ public class ButtonPanel extends JPanel {
         this.add(createButton("Long Run", "playButton:longRun", playCallRule));
         this.add(createButton("Short Pass", "playButton:shortPass", playCallRule));
         this.add(createButton("Long Pass", "playButton:longPass", playCallRule));
+        this.add(createButton("Bomb", "playButton:bomb", playCallRule));
 
         DisplayRule rspRule= state -> state.waitingForRSP(this.playerIndex);
         this.add(createButton("Rock", "rspButton:ROCK", rspRule));
@@ -66,6 +67,13 @@ public class ButtonPanel extends JPanel {
         this.add(createButton("Sack quarterback", "defenceButton:sack", defenceRule));
         this.add(createButton("Go for interception", "defenceButton:intercept", defenceRule));
 
+        //to show the bomb done button, we must have an odd dice value
+        //and be on effonce having called the bomb
+        DisplayRule bombOffenceRule= gamePosRule(true, false, GamePos.bomb);
+        DisplayRule bombDoneRule= state ->
+            bombOffenceRule.display(state) && state.sumDice()%2 == 1;
+        this.add(createButton("Roll", "bombButton:roll", bombOffenceRule));
+        this.add(createButton("Done", "bombButton:done", bombDoneRule));
     }
 
     /**

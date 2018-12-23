@@ -4,5 +4,6 @@ public enum Play {
     shortRun,
     longRun,
     shortPass,
-    longPass
+    longPass,
+    bomb
 }

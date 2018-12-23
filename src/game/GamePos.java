@@ -8,6 +8,7 @@ public enum GamePos {
     longRunFumble, //the offence just fumbled a long run
     shortPass, //currently doing a short pass
     longPass, //currently doing a long pass
+    bomb, //currently doing a bomb
     defenceChoice, //the defence is making a choice to sack or intercept
     defenceRoll, //the defence is rolling to see what happens (sack/interception)
     touchdown, //just scored a touch down, waiting for decision

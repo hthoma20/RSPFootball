@@ -73,6 +73,13 @@ public class HumanPlayer extends Player implements ActionListener {
             DefenceAction.Choice choice= DefenceAction.Choice.valueOf(param);
             this.sendGameAction(new DefenceAction(this, choice));
         }
+        else if(action.equals("bombButton")){
+            boolean done= false;
+            if(param.equals("done")){
+                done= true;
+            }
+            this.sendGameAction(new BombAction(this, done));
+        }
         else{
             System.out.println("Human Player recieved unknown action: " + command);
         }

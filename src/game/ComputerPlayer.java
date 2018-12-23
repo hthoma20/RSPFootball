@@ -3,6 +3,7 @@ package game;
 import action.*;
 
 public class ComputerPlayer extends Player{
+    private GameState currState;
     public ComputerPlayer(LocalGame game, String name, int index) {
         super(game, name, index);
     }
@@ -10,23 +11,23 @@ public class ComputerPlayer extends Player{
     @Override
     public void receiveInfo(GameInfo info) {
         if(info instanceof GameState){
-            GameState state= (GameState)info;
+            currState= (GameState)info;
 
             //check if we must rsp
-            if(state.waitingForRSP(this.playerIndex)){
+            if(currState.waitingForRSP(this.playerIndex)){
                 this.sendGameAction(new RSPAction(this, chooseRSP()));
             }
 
             //check if we must roll
-            int waitingForRoll= state.waitingForRoll(this.playerIndex);
+            int waitingForRoll= currState.waitingForRoll(this.playerIndex);
             if(waitingForRoll != -1){
                 this.sendGameAction(new RollAction(this, waitingForRoll));
             }
 
             //check if we must make some decision
-            boolean isMyPlay= state.getPossession() == this.playerIndex;
+            boolean isMyPlay= currState.getPossession() == this.playerIndex;
             if(isMyPlay){
-                switch(state.getGamePos()){
+                switch(currState.getGamePos()){
                     case playCall:
                         this.sendGameAction(new PlaycallAction(this, callPlay()));
                         break;
@@ -39,10 +40,12 @@ public class ComputerPlayer extends Player{
                     case touchback:
                         this.sendGameAction(new KickReturnAction(this, chooseTouchback()));
                         break;
+                    case bomb:
+                        this.sendGameAction(new BombAction(this, chooseBomb()));
                 }
             }
             else{
-                switch(state.getGamePos()){
+                switch(currState.getGamePos()){
                     case defenceChoice:
                         this.sendGameAction(new DefenceAction(this, chooseSack()));
                 }
@@ -55,7 +58,9 @@ public class ComputerPlayer extends Player{
      * @return rock, scissors, or paper
      */
     private RSP chooseRSP(){
-        return RSP.ROCK;
+        //return a random choice
+        return randChoice(RSP.values());
+        //return RSP.ROCK;
     }
 
     /**
@@ -63,7 +68,9 @@ public class ComputerPlayer extends Player{
      * @return the play we want to do
      */
     private Play callPlay(){
-        return Play.longPass;
+        //return a random play
+        return randChoice(Play.values());
+        //return Play.values()[0];
     }
 
     /**
@@ -95,6 +102,35 @@ public class ComputerPlayer extends Player{
      * @return sack or interception
      */
     private DefenceAction.Choice chooseSack(){
+
         return DefenceAction.Choice.sack;
+    }
+
+    /**
+     * decide wether to stop rolling in the bomb phase
+     * @return true if we want to hold our cards
+     */
+    private boolean chooseBomb(){
+        //if we're able to stop, stop
+        if(currState.sumDice()%2 == 1){
+            return true;
+        }
+
+        return false;
+    }
+
+    private <T> T randChoice(T[] values){
+        int choice= (int)(Math.random()*values.length);
+        return values[choice];
+    }
+
+    @Override
+    public void sendGameAction(GameAction action){
+        try {
+            Thread.sleep(400);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        super.sendGameAction(action);
     }
 }
