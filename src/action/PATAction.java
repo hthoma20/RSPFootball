@@ -1,6 +1,6 @@
 package action;
 
-import game.Player;
+import game.player.Player;
 
 public class PATAction extends GameAction {
     private PATType type;

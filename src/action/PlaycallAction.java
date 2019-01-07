@@ -1,6 +1,6 @@
 package action;
 
-import game.Player;
+import game.player.Player;
 import game.Play;
 
 public class PlaycallAction extends GameAction{

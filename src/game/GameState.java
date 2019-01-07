@@ -6,6 +6,8 @@ import action.PATAction;
 import java.util.Arrays;
 import java.util.Scanner;
 
+import static game.GamePos.*;
+
 public class GameState extends GameInfo{
     static Scanner in = new Scanner(System.in);
 
@@ -37,11 +39,18 @@ public class GameState extends GameInfo{
     //the previous roll
     private int[] roll= null;
 
+    //who kicked in the first half
+    private int initialKicker;
+
+    public static final int NONE= -2; //no winner
+    public static final int TIE= -1; //tie game
+    private int winner= NONE;
+
     /**
      * create a game state representing the beginning of
      * a game
      */
-    public GameState(){
+    public GameState(int initialKicker){
         this.scores= new int[2];
         this.rsps= new RSP[2];
         rsps[0]= null;
@@ -52,19 +61,21 @@ public class GameState extends GameInfo{
 
         this.movingRight= true;
 
-        this.possession= 0;
+        this.possession= initialKicker;
 
         this.down= 1;
 
         this.quarter= 1;
         this.playClock= 1;
 
-        this.gamePos= GamePos.playCall;
+        this.gamePos= GamePos.kickoff;
+
+        this.initialKicker= initialKicker;
     }
 
     //make a deep copy of this gamestate
     public GameState copy(){
-        GameState copy= new GameState();
+        GameState copy= new GameState(this.initialKicker);
 
         //copy the scores
         copy.scores= new int[this.scores.length];
@@ -104,6 +115,8 @@ public class GameState extends GameInfo{
                 copy.roll[i] = this.roll[i];
             }
         }
+
+        copy.initialKicker= this.initialKicker;
 
         return copy;
     }
@@ -205,6 +218,34 @@ public class GameState extends GameInfo{
 
     private void advanceQuarter(){
         this.quarter++;
+        this.playClock= 1;
+
+        //if the half is over
+        if(quarter == 3){
+            possession= (initialKicker+1)%2;
+            kickOff();
+        }
+
+        //if the game is over
+        if(quarter == 5){
+            if(scores[0] != scores[1]) {
+                winner = scores[0] > scores[1] ? 0 : 1;
+            }
+            else{
+                possession= initialKicker;
+                kickOff();
+            }
+        }
+
+        //the game is over
+        if(quarter == 6){
+            if(scores[0] == scores[1]){
+                winner= TIE;
+            }
+            else{
+                winner= scores[0] > scores[1] ? 0 : 1;
+            }
+        }
     }
 
     /**
@@ -215,6 +256,8 @@ public class GameState extends GameInfo{
     public void switchPossession(int yards){
         this.possession++;
         this.possession%= 2;
+
+        ballPos+= yards;
 
         //switch direction of play
         ballPos= 100 - ballPos;
@@ -342,6 +385,104 @@ public class GameState extends GameInfo{
     }
 
     /**
+     * do the things that should happen on a punt
+     * @param rspWinner the player index who won the rsp
+     */
+    public void punt(int rspWinner){
+        if(rspWinner == -1){
+            puntRoll();
+        }
+        else if(rspWinner == possession){
+            gamePos= GamePos.fakeChoice;
+        }
+        else{
+            gamePos= GamePos.defenceRoll;
+        }
+    }
+
+    /**
+     * indicate that we are waiting for dice for a punt
+     */
+    public void puntRoll(){
+        gamePos= punt;
+    }
+
+    /**
+     * indicate that a punt was blocked
+     */
+    public void kickBlocked(){
+        switchPossession(-10);
+        advancePlay(false);
+    }
+
+    /**
+     * indicate that the offence is going for a fake kick
+     */
+    public void fakeKick(){
+        gamePos= GamePos.fakeKick;
+    }
+
+    /**
+     * do the things that should happen on a field goal
+     * @param rspWinner the player index who won the rsp
+     */
+    public void fieldGoal(int rspWinner){
+        if(rspWinner == -1){
+            fieldGoalRoll();
+        }
+        else if(rspWinner == possession){
+            gamePos= GamePos.fakeChoice;
+        }
+        else{
+            gamePos= GamePos.defenceRoll;
+        }
+    }
+
+    /**
+     * indicate that we are waiting for a roll for field goal
+     */
+    public void fieldGoalRoll(){
+        gamePos= fieldGoal;
+    }
+
+    /**
+     * indicate that a field goal has been kicked
+     *
+     * @param sum the sum of the dice rolled
+     * @return whether the field goal was complete
+     */
+    public boolean fieldGoalKicked(int sum){
+        boolean kickGood= false;
+
+        //check if the kick is good according to the table
+        if(ballPos >= 90){
+            kickGood= sum >= 4;
+        }
+        else if(ballPos >= 80){
+            kickGood= sum >= 5;
+        }
+        else if(ballPos >= 50){
+            //after 20 yarders, the increase is linear
+            kickGood= sum >= ((100-ballPos)/5 + 2);
+        }
+
+        advancePlay();
+
+        if(kickGood){
+            scores[possession]+= 3;
+            advancePlay();
+            kickOff();
+            return true;
+        }
+        else{
+            //move ball appropriatly
+            ballPos= Math.min(ballPos-5, 80);
+            switchPossession();
+            return false;
+        }
+    }
+
+    /**
      * indicate that the defence is going for an interception
      */
     public void interceptAttempt(){
@@ -418,12 +559,14 @@ public class GameState extends GameInfo{
                     return 3;
 
                 case onsideKick:
+                case extraPoint:
+                case fieldGoal:
                     return 2;
 
-                case extraPoint:
                 case longRun:
                 case kickReturn:
                 case longPass:
+                case fakeKick:
                     return 1;
 
                 case interception:
@@ -546,6 +689,17 @@ public class GameState extends GameInfo{
     }
 
     /**
+     * indicate that the two point conversion is complete
+     * @param rspWinner the winner of the two point conversion
+     */
+    public void twoPointConversion(int rspWinner){
+        if(rspWinner == possession){
+            scores[possession]+= 2;
+        }
+        kickOff();
+    }
+
+    /**
      * gets the state ready for a kickoff
      */
     public void kickOff(){
@@ -567,6 +721,9 @@ public class GameState extends GameInfo{
         else if(ballPos >= 100){
             //wait for player to choose touchback or regular
             gamePos= GamePos.touchback;
+        }
+        else if(gamePos == GamePos.punt && ballPos >= 90){
+            gamePos= GamePos.playCall;
         }
         else{
             regularReturn();
@@ -655,6 +812,22 @@ public class GameState extends GameInfo{
         return sum;
     }
 
+    /**
+     * @return the roll as a string
+     */
+    public String rollString(){
+        String str= "";
+        if(roll == null){
+            return str;
+        }
+        for(int i=0; i<roll.length-1;i++){
+            str+= roll[i]+", ";
+        }
+        str+= roll[roll.length-1];
+
+        return str;
+    }
+
     //GETTERS
 
     public int getScore(int player) {
@@ -699,5 +872,9 @@ public class GameState extends GameInfo{
 
     public boolean isMovingRight() {
         return movingRight;
+    }
+
+    public int getWinner(){
+        return winner;
     }
 }

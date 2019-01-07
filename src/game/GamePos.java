@@ -20,4 +20,8 @@ public enum GamePos {
     touchback, //waiting for the returning team to take knee or run it
     kickReturn, //the returning team is rolling for a kick return
     interception, //waiting for a roll for where the ball was intercepted
+    fakeChoice, //waiting for a decision about a fake kick
+    fakeKick, //doing the fake kick
+    punt, //currently doing a punt
+    fieldGoal, //currently going a field goal
 }

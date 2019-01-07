@@ -3,19 +3,41 @@ package gui;
 import game.GameState;
 import javafx.scene.canvas.Canvas;
 
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.IOException;
 
 public class FieldPanel extends JPanel {
     private int ballPos;
     private int firstDown;
     private boolean movingRight;
 
+    private BufferedImage fieldImage;
+    private BufferedImage ballImage;
+
     public FieldPanel(){
         super();
 
         this.ballPos= 50;
         this.firstDown= 60;
+
+        loadImages();
+    }
+
+    private void loadImages(){
+
+        try {
+            File file= new File("res" + File.separator + "field.png");
+            this.fieldImage= ImageIO.read(file);
+
+            file= new File("res" + File.separator + "football.png");
+            this.ballImage= ImageIO.read(file);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
@@ -23,7 +45,9 @@ public class FieldPanel extends JPanel {
         g.setColor(Color.GREEN);
         g.fillRect(0, 0, getWidth(), getHeight());
 
-        paintYardLines(g);
+        g.drawImage(fieldImage, 0, 0, getWidth(), getHeight(), this);
+
+        //paintYardLines(g);
         paintFirstDown(g);
         paintBall(g);
     }
@@ -64,10 +88,10 @@ public class FieldPanel extends JPanel {
         int x= yardToX(ballPos);
         int y= getHeight()/2;
 
-        int ballWidth= len5();
-        int ballHeight= 2*ballWidth/5;
+        int ballWidth= 5*len5()/4;
+        int ballHeight= 3*ballWidth/5;
 
-        g.fillOval(x-ballWidth/2, y-ballHeight/2, ballWidth, ballHeight);
+        g.drawImage(ballImage, x-ballWidth/2, y-ballHeight/2, ballWidth, ballHeight, this);
     }
 
     //returns the x coord of a given yard line

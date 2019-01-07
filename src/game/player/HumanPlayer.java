@@ -1,11 +1,9 @@
-package game;
+package game.player;
 
 import action.*;
-import game.Play;
+import game.*;
 import gui.GameFrame;
 
-import javax.swing.*;
-import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
@@ -24,6 +22,13 @@ public class HumanPlayer extends Player implements ActionListener {
             GameState state= (GameState)info;
 
             frame.updateFrame(state);
+        }
+        if(info instanceof MessageInfo){
+            frame.newMessage(((MessageInfo) info).getMessage());
+        }
+        if(info instanceof GameOverInfo){
+            frame.newMessage("Game Over");
+            frame.newMessage(((GameOverInfo) info).getWinnerMessage());
         }
     }
 
@@ -79,6 +84,10 @@ public class HumanPlayer extends Player implements ActionListener {
                 done= true;
             }
             this.sendGameAction(new BombAction(this, done));
+        }
+        else if(action.equals("fakeButton")){
+            FakeAction.KickType type= FakeAction.KickType.valueOf(param);
+            this.sendGameAction(new FakeAction(this, type));
         }
         else{
             System.out.println("Human Player recieved unknown action: " + command);

@@ -1,6 +1,6 @@
 package action;
 
-import game.Player;
+import game.player.Player;
 
 public class DefenceAction extends GameAction {
     private Choice choice;

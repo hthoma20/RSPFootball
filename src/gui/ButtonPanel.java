@@ -2,11 +2,10 @@ package gui;
 
 import game.GamePos;
 import game.GameState;
-import game.LocalGame;
 
 import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionListener;
-import java.util.ArrayList;
 import java.util.HashMap;
 
 
@@ -38,6 +37,9 @@ public class ButtonPanel extends JPanel {
         this.add(createButton("Short Pass", "playButton:shortPass", playCallRule));
         this.add(createButton("Long Pass", "playButton:longPass", playCallRule));
         this.add(createButton("Bomb", "playButton:bomb", playCallRule));
+        this.add(createButton("Punt", "playButton:punt", playCallRule));
+        DisplayRule fieldGoalRule= state -> playCallRule.display(state) && state.getBallPos() >= 50;
+        this.add(createButton("Field Goal", "playButton:fieldGoal", fieldGoalRule));
 
         DisplayRule rspRule= state -> state.waitingForRSP(this.playerIndex);
         this.add(createButton("Rock", "rspButton:ROCK", rspRule));
@@ -49,10 +51,13 @@ public class ButtonPanel extends JPanel {
         this.add(createButton("2-point conversion", "patButton:twoPointConversion", touchdownRule));
 
         DisplayRule roll1Rule= state -> state.waitingForRoll(this.playerIndex) == 1;
+        roll1Rule= orRules(roll1Rule, gamePosRule(true, false, GamePos.punt));
         this.add(createButton("Roll 1", "rollButton:1", roll1Rule));
         DisplayRule roll2Rule= state -> state.waitingForRoll(this.playerIndex) == 2;
+        roll2Rule= orRules(roll2Rule, gamePosRule(true, false, GamePos.punt));
         this.add(createButton("Roll 2", "rollButton:2", roll2Rule));
         DisplayRule roll3Rule= state -> state.waitingForRoll(this.playerIndex) == 3;
+        roll3Rule= orRules(roll3Rule, gamePosRule(true, false, GamePos.punt));
         this.add(createButton("Roll 3", "rollButton:3", roll3Rule));
 
         DisplayRule kickoffRule= gamePosRule(true, false, GamePos.kickoff);
@@ -74,6 +79,10 @@ public class ButtonPanel extends JPanel {
             bombOffenceRule.display(state) && state.sumDice()%2 == 1;
         this.add(createButton("Roll", "bombButton:roll", bombOffenceRule));
         this.add(createButton("Done", "bombButton:done", bombDoneRule));
+
+        DisplayRule fakeKickRule= gamePosRule(true, false, GamePos.fakeChoice);
+        this.add(createButton("Regular Kick", "fakeButton:normal", fakeKickRule));
+        this.add(createButton("Fake Kick", "fakeButton:fake", fakeKickRule));
     }
 
     /**

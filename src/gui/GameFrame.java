@@ -1,8 +1,7 @@
 package gui;
 
 import game.GameState;
-import game.HumanPlayer;
-import game.Player;
+import game.player.HumanPlayer;
 
 import javax.swing.*;
 import java.awt.*;
@@ -13,6 +12,7 @@ public class GameFrame {
     private InfoPanel info;
     private ButtonPanel buttons;
     private ScorePanel score;
+    private MessagePanel messagePanel;
 
     /**
      *
@@ -24,7 +24,7 @@ public class GameFrame {
         JFrame frame= new JFrame();
 
         frame.setName("RSP Football");
-        frame.setSize(700,400);
+        frame.setSize(800,500);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
         this.pane= frame.getContentPane();
@@ -33,19 +33,11 @@ public class GameFrame {
         this.info= new InfoPanel();
         this.buttons= new ButtonPanel(guiPlayer, guiPlayer.getPlayerIndex());
         this.score= new ScorePanel();
-
-        JFrame scoreFrame= new JFrame();
-        scoreFrame.setName("Scoreboard");
-        scoreFrame.setSize(500, 300);
-        scoreFrame.add(score);
-
+        this.messagePanel= new MessagePanel();
 
         layoutPanel();
         frame.setLocationByPlatform(true);
         frame.setVisible(true);
-
-        scoreFrame.setLocationByPlatform(true);
-        scoreFrame.setVisible(true);
     }
 
     private void setLookAndFeel(){
@@ -67,30 +59,48 @@ public class GameFrame {
         GridBagConstraints c= new GridBagConstraints();
 
         c.fill= GridBagConstraints.BOTH;
+        c.insets= new Insets(5,5,5,5);
 
-
-        //add button panel
+        //add the logo
         c.gridx= 0;
         c.gridy= 0;
-        c.weighty= 1;
-        c.weightx= 1;
         c.gridwidth= 1;
         c.gridheight= 1;
-        pane.add(buttons, c);
+        c.weightx= 2;
+        c.weighty= 1;
+        pane.add(new ImagePanel("res", "logo.png"), c);
+
+        //add score board
+        c.gridx= 1;
+        c.gridy= 0;
+        c.weightx= 2;
+        c.weighty= 1;
+        pane.add(score, c);
+
+        //add message panel
+        c.gridx= 2;
+        c.gridy= 0;
+        c.weightx= 1;
+        c.weighty= 4;
+        pane.add(messagePanel, c);
 
         //add field panel
         c.gridx= 0;
         c.gridy= 1;
-        c.weighty= 4;
+        c.gridwidth= 3;
+        c.gridheight= 1;
+        c.weighty= 10;
         c.weightx= 1;
         pane.add(field, c);
 
-        //add info panel
+        //add button panel
         c.gridx= 0;
         c.gridy= 2;
-        c.weighty= 5;
+        c.weighty= 1;
         c.weightx= 1;
-        pane.add(info, c);
+        c.gridwidth= 3;
+        c.gridheight= 1;
+        pane.add(buttons, c);
     }
 
     /**
@@ -102,5 +112,13 @@ public class GameFrame {
         info.updateInfo(state);
         buttons.updateButtons(state);
         score.updateScore(state);
+    }
+
+    /**
+     * updates the gui to reflect the new message
+     * @param message the new message
+     */
+    public void newMessage(String message){
+        messagePanel.newMessage(message);
     }
 }

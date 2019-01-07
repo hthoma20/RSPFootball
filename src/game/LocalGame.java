@@ -1,8 +1,14 @@
 package game;
 
 import action.*;
+import game.player.HumanPlayer;
+import game.player.Player;
+import game.player.TestComputerPlayer;
 
 import java.util.HashMap;
+
+import static game.GameState.TIE;
+import static game.Play.*;
 
 public class LocalGame {
     //a list of game pos where we need an rsp
@@ -11,14 +17,24 @@ public class LocalGame {
     private GameState state;
     private Player[] players;
 
+    //a map from plays to their readable names
+    private HashMap<Play, String> playStrings;
+
     public LocalGame(){
-        this.state= new GameState();
+        String name0= "Human";
+        String name1= "Bot";
+
+        this.state= new GameState(0);
 
         this.players= new Player[2];
-        players[0]= new HumanPlayer(this, "Human", 0);
-        players[1]= new ComputerPlayer(this, "Bot", 1);
+        players[0]= new HumanPlayer(this, name0, 0);
+        players[1]= new TestComputerPlayer(this, name1, 1);
+
+        setupPlayStrings();
 
         sendInfo(state);
+        sendMessage("Match begins!");
+        sendMessage(name0 + " will kick to " + name1);
     }
 
     /**
@@ -51,6 +67,9 @@ public class LocalGame {
         }
         if (action instanceof BombAction) {
             return isValidBombAction((BombAction)action);
+        }
+        if(action instanceof FakeAction){
+            return isValidFakeAction(((FakeAction) action));
         }
 
         return false;
@@ -85,9 +104,26 @@ public class LocalGame {
     }
 
     private boolean isValidRollAction(RollAction action){
+        int player= playerIndex(action.getPlayer());
+        //whether the acting player is on offence
+        boolean onOffence= player == state.getPossession();
+        int numDice= action.getNumDice();
+        GamePos pos= state.getGamePos();
+
+        //if were punting, the offence may roll 1,2,3 dice
+        if(pos == GamePos.punt){
+            if(!onOffence){
+                return false;
+            }
+            if(1 > numDice || numDice > 3){
+                return false;
+            }
+            return true;
+        }
+
         //check that the state is waiting for this player to roll the correct number of dice
-        int waitingFor= state.waitingForRoll(playerIndex(action.getPlayer()));
-        return waitingFor == action.getNumDice();
+        int waitingFor= state.waitingForRoll(player);
+        return waitingFor == numDice;
     }
 
     private boolean isValidKickoffAction(KickoffAction action){
@@ -136,6 +172,16 @@ public class LocalGame {
         return true;
     }
 
+    private boolean isValidFakeAction(FakeAction action){
+        //game must  be in fakeChoice position
+        if(state.getGamePos() != GamePos.fakeChoice){
+            return false;
+        }
+
+        //must be offence
+        return players[state.getPossession()] == action.getPlayer();
+    }
+
     /**
      * recieve an action from a player
      * @param action the action recieved
@@ -148,6 +194,11 @@ public class LocalGame {
 
         //if the action goes well, send new state
         if(receiveAction(action)){
+            int winner= state.getWinner();
+            if(winner != GameState.NONE){
+                String winnerString= winner == TIE ? "TIE GAME" : players[winner].getName() + "WINS";
+                sendInfo(new GameOverInfo(winnerString));
+            }
             sendInfo(state.copy());
         }
     }
@@ -170,7 +221,7 @@ public class LocalGame {
             return true;
         }
         if(action instanceof RollAction){
-            return receiveRoll(((RollAction)action).getNumDice());
+            return receiveRoll((RollAction)action);
         }
         if(action instanceof KickoffAction){
             state.kickoffType(((KickoffAction)action).getType());
@@ -186,6 +237,10 @@ public class LocalGame {
         }
         if(action instanceof BombAction){
             receiveBombAction(((BombAction) action).isDone());
+            return true;
+        }
+        if(action instanceof FakeAction){
+            receiveFakeAction(((FakeAction) action).getType());
             return true;
         }
         return false;
@@ -215,9 +270,11 @@ public class LocalGame {
                 //if the offense won the rsp
                 if(winner == state.getPossession()){
                     state.runBall(5);
+                    sendMessage("<O> win the RSP for another 5 yards");
                 }
                 else{
                     state.advancePlay();
+                    sendMessage("<D> win the RSP to stop <O> at the " + ballYardLine() + " yard line");
                 }
                 break;
             case longRunFumble:
@@ -226,14 +283,26 @@ public class LocalGame {
                 if(winner != state.getPossession()){
                     state.switchPossession();
                 }
+                sendMessage("<O> win the RSP and recover the fumble");
                 break;
             case shortPass:
                 //if the offense won the rsp
                 if(winner == state.getPossession()){
                     state.runBall(10);
+                    sendMessage("<O> win the RSP to run another 10 yards");
                 }
                 else{
                     state.advancePlay();
+                    sendMessage("<D> win the RSP to stop <O> at the " + ballYardLine() + " yard line");
+                }
+                break;
+            case twoPointConversion:
+                state.twoPointConversion(winner);
+                if(winner == state.getPossession()){
+                    sendMessage("<O> make the 2-point conversion");
+                }
+                else{
+                    sendMessage("<D> stop the 2-point conversion");
                 }
                 break;
         }
@@ -248,14 +317,31 @@ public class LocalGame {
      * @param winner the index of the player who won the rsp, -1 if tie
      */
     private void rspComplete(int winner){
-        //if rsp tied
         if(winner == -1){
+            sendMessage("RSP tied");
+        }
+        else {
+            sendMessage(players[winner].getName() + " win the RSP");
+        }
+
+        Play currentPlay= state.getPlay();
+
+        //on punt and field goal, tie matters
+        if(currentPlay == punt){
+            state.punt(winner);
+            return;
+        }
+        if(currentPlay == fieldGoal){
+            state.fieldGoal(winner);
+            return;
+        }
+        //on all others, tie results in advance down
+        else if(winner == -1){
             state.advancePlay();
             return;
         }
 
         //otherwise do the correct play
-        Play currentPlay= state.getPlay();
         switch(currentPlay){
             case shortRun:
                 state.shortRun(winner);
@@ -277,12 +363,19 @@ public class LocalGame {
 
     private boolean receivePlaycall(PlaycallAction action){
         state.playCalled(action.getPlay());
+
+        sendMessage("<O> called a " + playStrings.get(action.getPlay()));
+
         return true;
     }
 
-    private boolean receiveRoll(int numDice){
+    private boolean receiveRoll(RollAction action){
+        int numDice= action.getNumDice();
+
         state.rollDice(numDice);
         int sum= state.sumDice();
+
+        sendMessage(action.getPlayer().getName() + " rolled " + state.rollString());
 
         //whether this roll results in a touchdown
         boolean touchdown= false;
@@ -292,6 +385,7 @@ public class LocalGame {
                 if(sum >= 4) {
                     //give the kicker a point
                     state.extraKick();
+                    sendMessage("The extra point is good");
                 }
                 //now kickoff
                 state.kickOff();
@@ -299,11 +393,13 @@ public class LocalGame {
 
             case regularKick:
                 state.ballKicked(sum*5);
+                sendMessage("The kick off goes " + (sum*5) + " yards");
                 break;
 
             case onsideKick:
                 //the kick was good if the roll was 5 or less
                 state.onsideKick(sum <= 5);
+                sendMessage("<O> recover the onside at the 45");
                 break;
 
             case defenceRoll:
@@ -312,12 +408,15 @@ public class LocalGame {
 
             case kickReturn:
                 state.kickReturned(sum*5);
+                sendMessage("The kick is returned for " + (sum*5) + " yards");
                 break;
 
             case longRun:
                 touchdown= state.runBall(sum*5);
+                sendMessage("<O> run for " + (sum*5) + " yards");
                 if(sum == 1){
                     state.fumbleRun();
+                    sendMessage("The ball is fumbled");
                 }
                 else{
                     //if we didn't score, worry about downs
@@ -327,6 +426,7 @@ public class LocalGame {
 
             case longPass:
                 touchdown= state.throwBall(sum*5 + 10);
+                sendMessage("<O> throw for " + (sum*5 + 10) + " yards");
                 state.advancePlay(!touchdown);
                 break;
 
@@ -339,6 +439,51 @@ public class LocalGame {
                         state.interception(sum*5);
                         break;
                 }
+                if(state.getGamePos() == GamePos.playCall) {
+                    sendMessage("The throw goes out of bounds");
+                }
+                else{
+                    sendMessage("The pass is intercepted at the " + ballYardLine() + " yard line");
+                }
+                break;
+            case punt:
+                state.advancePlay(false);
+                state.ballKicked(sum*5);
+                    if(state.getGamePos() == GamePos.playCall){
+                        sendMessage("Coffin corner!");
+                    }
+                    else{
+                        sendMessage("Ball kicked to the " + ballYardLine() + " yard line");
+                    }
+                break;
+            case fieldGoal:
+                state.advancePlay(false);
+                state.fieldGoalKicked(sum);
+                if(state.getGamePos() == GamePos.kickoff){
+                    sendMessage("The kick is good");
+                }
+                else{
+                    sendMessage("<D> miss the field goal");
+                }
+                break;
+            case fakeKick:
+                int playYards= sum*5 - 10;
+                //whether this play resulted in points
+                boolean score= false;
+                if(playYards < 0){
+                    score= state.sackBall(-playYards);
+                    sendMessage("<D> stop the fake kick");
+                }
+                else{
+                    score= state.runBall(playYards);
+                    sendMessage("<O> make a gain with the fake play");
+                }
+                state.advancePlay(!score);
+                break;
+        }
+
+        if(touchdown){
+            sendMessage("TOUCHDOWN <O>!");
         }
 
         return true;
@@ -355,6 +500,7 @@ public class LocalGame {
             case shortRun:
                 //if the defence rolled a 5 or 6, there is a sack
                 if(sum >= 5){
+                    sendMessage("<O> takes a five yard loss");
                     safety= state.sackBall(5);
                 }
 
@@ -365,31 +511,52 @@ public class LocalGame {
                 if(sum == 6){
                     sackYards= 10;
                 }
+                sendMessage("<O> takes a " + sackYards + " loss");
                 safety= state.sackBall(sackYards);
                 state.advancePlay(!safety);
                 break;
             case shortPass:
                 if(sum == 6){
                     state.interception(10);
+                    sendMessage("It looks like <D> might intercept");
                 }
                 else{
+                    sendMessage("Pass incomplete");
                     state.advancePlay();
                 }
                 break;
             case longPass:
                 if(sum >= 5){
+                    sendMessage("It looks like <D> might intercept");
                     state.interception();
                 }
                 else{
+                    sendMessage("Pass incomplete");
                     state.advancePlay();
                 }
+                break;
             case bomb:
                 if(sum%2 == 0){
+                    sendMessage("It looks like <D> might intercept");
                     state.interception();
                 }
                 else{
                     state.advancePlay();
                 }
+            case punt:
+            case fieldGoal:
+                if(sum == 1){
+                    sendMessage("The kick is blocked");
+                    state.kickBlocked();
+                }
+                else{
+                    state.puntRoll();
+                }
+                break;
+        }
+
+        if(safety){
+            sendMessage("<D> get a safety");
         }
     }
 
@@ -399,6 +566,7 @@ public class LocalGame {
                 state.regularReturn();
                 break;
             case touchback:
+                sendMessage("<O> take a touch back");
                 state.touchback();
                 break;
         }
@@ -421,6 +589,11 @@ public class LocalGame {
                 }
 
                 boolean safety= state.sackBall(sackYards);
+                String message= "<D> make a " + sackYards + " yard sack";
+                if(safety){
+                    message+= " for a safety";
+                }
+                sendMessage(message);
                 state.advancePlay(!safety);
                 break;
 
@@ -436,10 +609,29 @@ public class LocalGame {
         }
         else{
             state.bombRoll();
+            sendMessage("The roll is " + state.rollString());
             //check if that was last throw
             if(state.getRoll().length == 3){
                 state.bombThrown();
             }
+        }
+    }
+
+    private void receiveFakeAction(FakeAction.KickType type){
+        switch(type){
+            case normal:
+                switch(state.getPlay()){
+                    case punt:
+                        state.puntRoll();
+                        break;
+                    case fieldGoal:
+                        state.fieldGoalRoll();
+                        break;
+                }
+                break;
+            case fake:
+                state.fakeKick();
+                sendMessage("It looks like <O> is faking the kick");
         }
     }
 
@@ -451,6 +643,43 @@ public class LocalGame {
         for(Player player : players){
             player.sendInfo(info);
         }
+    }
+
+    /**
+     * convienience method to contruct and send a message info
+     * with the given message
+     * use a formatted string, all occurances of <O> in the message
+     * will be replaced with the offence's name
+     * all occurances of <D> will be replaces with defence name
+     * @param message the message to send
+     */
+    private void sendMessage(String message){
+        message= message.replace("<O>", players[state.getPossession()].getName());
+        message= message.replace("<D>", players[(state.getPossession()+1)%2].getName());
+
+        sendInfo(new MessageInfo(message));
+    }
+
+    /**
+     * @return the current yard line as a football yard line
+     */
+    private int ballYardLine(){
+        int yardLine= state.getBallPos();
+        if(yardLine > 50){
+            return yardLine - 50;
+        }
+        return yardLine;
+    }
+
+    private void setupPlayStrings(){
+        playStrings= new HashMap<>();
+        playStrings.put(shortRun, "Short Run");
+        playStrings.put(longRun, "Long Run");
+        playStrings.put(shortPass, "Short Pass");
+        playStrings.put(longPass, "Long Pass");
+        playStrings.put(bomb, "Bomb");
+        playStrings.put(punt, "Punt");
+        playStrings.put(fieldGoal, "Field Goal");
     }
 
     /**

@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="weka">
+    <CLASSES />
+    <JAVADOC />
+    <SOURCES>
+      <root url="jar://C:/Program Files/Weka-3-8/weka-src.jar!/src/main/java" />
+    </SOURCES>
+  </library>
+</component>

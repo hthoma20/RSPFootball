@@ -1,6 +1,8 @@
-package game;
+package game.player;
 
 import action.GameAction;
+import game.GameInfo;
+import game.LocalGame;
 
 public abstract class Player {
     protected LocalGame game;

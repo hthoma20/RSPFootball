@@ -5,5 +5,7 @@ public enum Play {
     longRun,
     shortPass,
     longPass,
-    bomb
+    bomb,
+    punt,
+    fieldGoal
 }
